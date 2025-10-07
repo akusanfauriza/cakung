@@ -4,15 +4,21 @@ require('dotenv').config();
 
 class TelegramService {
   constructor() {
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      console.log('❌ TELEGRAM_BOT_TOKEN tidak ditemukan di .env');
+      return;
+    }
+    
     this.bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
     this.setupHandlers();
+    console.log('✅ Telegram Bot berhasil diinisialisasi');
   }
 
   setupHandlers() {
     // Handler untuk pesan masuk
     this.bot.on('message', async (msg) => {
       const chatId = msg.chat.id;
-      const text = msg.text.toLowerCase().trim();
+      const text = msg.text ? msg.text.toLowerCase().trim() : '';
 
       try {
         if (text.startsWith('masuk')) {
@@ -57,10 +63,12 @@ class TelegramService {
       telegram_chat_id: chatId.toString()
     });
 
+    const currentBalance = await this.getCurrentBalance();
+    
     this.bot.sendMessage(chatId, 
       `✅ Pemasukan berhasil dicatat!\n` +
       `Jumlah: Rp ${amount.toLocaleString('id-ID')}\n` +
-      `Saldo saat ini: Rp ${await this.getCurrentBalance()}`
+      `Saldo saat ini: Rp ${currentBalance}`
     );
   }
 
@@ -81,11 +89,13 @@ class TelegramService {
       telegram_chat_id: chatId.toString()
     });
 
+    const currentBalance = await this.getCurrentBalance();
+    
     this.bot.sendMessage(chatId, 
       `✅ Pengeluaran berhasil dicatat!\n` +
       `Jumlah: Rp ${amount.toLocaleString('id-ID')}\n` +
       `Keterangan: ${description || '-'}\n` +
-      `Saldo saat ini: Rp ${await this.getCurrentBalance()}`
+      `Saldo saat ini: Rp ${currentBalance}`
     );
   }
 
@@ -100,14 +110,19 @@ class TelegramService {
   }
 
   async getCurrentBalance() {
-    const transactions = await Transaction.findAll();
-    const balance = transactions.reduce((total, transaction) => {
-      return transaction.type === 'masuk' ? 
-        total + parseFloat(transaction.amount) : 
-        total - parseFloat(transaction.amount);
-    }, 0);
-    
-    return balance.toLocaleString('id-ID');
+    try {
+      const transactions = await Transaction.findAll();
+      const balance = transactions.reduce((total, transaction) => {
+        return transaction.type === 'masuk' ? 
+          total + parseFloat(transaction.amount) : 
+          total - parseFloat(transaction.amount);
+      }, 0);
+      
+      return balance.toLocaleString('id-ID');
+    } catch (error) {
+      console.error('Error calculating balance:', error);
+      return '0';
+    }
   }
 }
 
